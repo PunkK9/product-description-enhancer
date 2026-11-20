@@ -27,18 +27,57 @@ Tick these off as you go, and commit after each one.
 
 ## Run it
 
-You need Python 3.12 and git.
+You need Python 3.12 and git. Versions are pinned in `requirements.txt`.
 
 ```bash
-python3.12 -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env        # then choose a model; see the comments inside
+copy .env.example .env
 streamlit run app/main.py
 pytest
 ```
 
-Your work goes in `app/core.py` (one stub per milestone) and `tests/test_core.py`. The first tests pass already; they
-check the plumbing.
+On macOS or Linux, activate with `source .venv/bin/activate` and copy settings with `cp .env.example .env`.
+
+The Streamlit page previews a template description immediately. Choosing "Merged LoRA model" downloads GPT-2 and trains the adapter on first use. A recorded comparison of that run is already in `results/evaluation.json` and is shown on the page.
+
+To reproduce the recorded numbers:
+
+```bash
+python -m app.record
+```
+
+## Data
+
+The pairs live in `milestone_1` inside `app/core.py`. Each row is a short catalogue spec and a longer marketing description written for this project. Nothing is scraped from a store.
+
+## Results
+
+`results/evaluation.json` is one recorded run, and the Streamlit page shows the same file. GPT-2 small, LoRA rank 4 and alpha 16 on each attention `c_attn` layer (147,456 trainable parameters). The adapter trains for 40 steps on the first 8 pairs, then the low-rank update is merged into the base weights (124,439,808 parameters, the same size as GPT-2).
+
+Loss on those 8 pairs, with padding ignored:
+
+| | loss |
+| --- | --- |
+| Before any LoRA step | 3.35 |
+| After 40 steps, eval mode | 1.43 |
+
+Keyword overlap on the first three specs (share of spec words that reappear). Those three specs are inside the eight training pairs.
+
+| generator | keyword overlap | composite |
+| --- | --- | --- |
+| Template that pastes the spec into a sentence | 1.00 | 0.85 |
+| Untouched GPT-2 | 0.22 | 0.49 |
+| LoRA, merged | 0.68 | 0.67 |
+
+The template wins keyword overlap because it copies the spec. It is the baseline, not a better writer. Untouched GPT-2, given the headphones spec, talks about an HTC phone. After the merge, the same prompt starts: "Capture your music with the ultimate in wireless Bluetooth headphones. The 40mm drivers deliver crisp, detailed sound..." The chino prompt still collapses into repeated words (`machine-stripping`), so the adapter has not learned every product.
+
+Limits, also listed on the page:
+
+- Only the first 8 of 30 pairs are trained, truncated to 128 tokens. There is no held-out shop catalogue.
+- Keyword overlap and the composite score (length, overlap, and whether sentences start differently) are not a shopper's judgment.
+- Forty steps are enough for the training specs to move toward the marketing style, and not enough to stop repetition or to cover a spec the adapter never saw.
 
 ## Settings and secrets
 

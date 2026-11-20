@@ -1,8 +1,8 @@
-"""Your code. One stub per milestone; build them in order and keep each one small."""
+"""Product-description milestones: dataset, LoRA fine-tune, generation, scoring, merge."""
 
+import json
 import re
-import math
-import random
+from pathlib import Path
 
 
 # ---------------------------------------------------------------------------
@@ -150,15 +150,16 @@ def milestone_1():
 # ---------------------------------------------------------------------------
 # Milestone 2: Implement LoRA adapter injection and training on a pre-trained LLM.
 # ---------------------------------------------------------------------------
-def milestone_2(fast: bool = False):
+def milestone_2(fast: bool = False, steps: int = 8):
     """
     Inject LoRA adapters into GPT-2 and fine-tune for a few steps.
 
     Parameters
     ----------
     fast : bool
-        When True, skip the actual model download (useful for unit tests running
-        in environments without internet access or GPUs).
+        When True, skip the actual model download (used by unit tests).
+    steps : int
+        Optimizer steps on the first eight training pairs.
     """
     import torch
     import torch.nn as nn
@@ -184,6 +185,8 @@ def milestone_2(fast: bool = False):
     tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
     tokenizer.pad_token = tokenizer.eos_token
     model = GPT2LMHeadModel.from_pretrained("gpt2")
+    for parameter in model.parameters():
+        parameter.requires_grad = False
 
     # --- LoRA hyper-parameters ---
     RANK = 4          # low-rank dimension
@@ -240,40 +243,63 @@ def milestone_2(fast: bool = False):
 
     # Only LoRA params are trainable
     optimizer = torch.optim.AdamW(
-        [p for p in model.parameters() if p.requires_grad], lr=3e-4
+        [p for p in model.parameters() if p.requires_grad], lr=1e-3
     )
 
-    model.train()
-    NUM_STEPS = 5
-    total_loss = 0.0
     input_ids = encodings["input_ids"]
-    for step in range(NUM_STEPS):
-        outputs = model(input_ids=input_ids, labels=input_ids)
+    attention_mask = encodings["attention_mask"]
+    labels = input_ids.clone()
+    labels[attention_mask == 0] = -100
+
+    def _eval_loss():
+        model.eval()
+        with torch.no_grad():
+            return float(
+                model(input_ids=input_ids, attention_mask=attention_mask, labels=labels).loss.item()
+            )
+
+    baseline_loss = _eval_loss()
+    model.train()
+    total_loss = 0.0
+    loss_history = []
+    for step in range(steps):
+        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
         loss = outputs.loss
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        total_loss += loss.item()
+        loss_history.append(float(loss.item()))
+        total_loss += loss_history[-1]
+        print(f"lora step {step + 1}/{steps} loss {loss_history[-1]:.4f}", flush=True)
 
-    avg_loss = total_loss / NUM_STEPS
+    final_eval_loss = _eval_loss()
+
+    avg_loss = total_loss / max(steps, 1)
 
     return {
         "model": model,
         "tokenizer": tokenizer,
         "lora_params_count": lora_params_count,
         "training_loss": round(avg_loss, 4),
+        "baseline_loss": round(baseline_loss, 4),
+        "final_loss": round(loss_history[-1], 4) if loss_history else None,
+        "final_eval_loss": round(final_eval_loss, 4),
+        "loss_history": [round(value, 4) for value in loss_history],
+        "steps": steps,
+        "rank": RANK,
+        "alpha": ALPHA,
     }
 
 
 # ---------------------------------------------------------------------------
 # Milestone 3: Generate enhanced descriptions (core logic used by Streamlit UI).
 # ---------------------------------------------------------------------------
-def milestone_3(spec: str, model=None, tokenizer=None):
+def milestone_3(spec: str, model=None, tokenizer=None, max_new_tokens: int = 60):
     """
     Generate a marketing description for the given product spec.
 
-    If model/tokenizer are None (e.g., during testing without GPT-2), a simple
-    rule-based fallback is used so the function always returns a string.
+    If model/tokenizer are None, a template built from the spec is returned.
+    That template is the non-neural baseline, not a fine-tuned model.
     """
     if model is None or tokenizer is None:
         # Rule-based fallback for testing / offline environments
@@ -294,10 +320,8 @@ def milestone_3(spec: str, model=None, tokenizer=None):
     with torch.no_grad():
         output_ids = model.generate(
             inputs["input_ids"],
-            max_new_tokens=80,
-            do_sample=True,
-            temperature=0.85,
-            top_p=0.92,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
             pad_token_id=tokenizer.eos_token_id,
         )
     generated = tokenizer.decode(output_ids[0], skip_special_tokens=True)
@@ -307,6 +331,38 @@ def milestone_3(spec: str, model=None, tokenizer=None):
     else:
         description = generated.strip()
     return description
+
+
+def _score_pair(spec: str, generated: str) -> dict:
+    """Score one description against its spec. Scores are proxies, not human ratings."""
+    spec_words = spec.split()
+    gen_words = generated.lower().split()
+    length_ratio = len(gen_words) / max(len(spec_words), 1)
+
+    stopwords = {
+        "a", "an", "the", "and", "or", "in", "on", "at", "to", "for",
+        "of", "with", "is", "are", "it", "its", "this", "that", "be",
+    }
+    spec_keywords = {
+        word.strip(",.%°/()") for word in spec.lower().split()
+        if word.strip(",.%°/()") not in stopwords and len(word) > 2
+    }
+    generated_lower = generated.lower()
+    matched = sum(1 for keyword in spec_keywords if keyword in generated_lower)
+    keyword_overlap = matched / max(len(spec_keywords), 1)
+
+    sentences = [sentence.strip() for sentence in re.split(r"[.!?]", generated) if sentence.strip()]
+    unique_starts = len({sentence.split()[0].lower() for sentence in sentences if sentence.split()})
+    sentence_variety = unique_starts / max(len(sentences), 1)
+
+    length_score = min(length_ratio / 5.0, 1.0)
+    composite = (length_score + keyword_overlap + sentence_variety) / 3.0
+    return {
+        "length_ratio": round(length_ratio, 2),
+        "keyword_overlap": round(keyword_overlap, 2),
+        "sentence_variety": round(sentence_variety, 2),
+        "composite_score": round(composite, 2),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -323,46 +379,8 @@ def milestone_4(model=None, tokenizer=None):
 
     for ex in data:
         spec = ex["spec"]
-        ref_desc = ex["description"]
         generated = milestone_3(spec, model, tokenizer)
-
-        # --- Metric 1: Length ratio (generated / spec) ---
-        spec_words = set(spec.lower().split())
-        gen_words = generated.lower().split()
-        length_ratio = len(gen_words) / max(len(spec.split()), 1)
-
-        # --- Metric 2: Keyword overlap (spec keywords in description) ---
-        stopwords = {
-            "a", "an", "the", "and", "or", "in", "on", "at", "to", "for",
-            "of", "with", "is", "are", "it", "its", "this", "that", "be",
-        }
-        spec_keywords = {
-            w.strip(",.%°/()") for w in spec.lower().split()
-            if w.strip(",.%°/()") not in stopwords and len(w) > 2
-        }
-        gen_text_lower = generated.lower()
-        matched = sum(1 for kw in spec_keywords if kw in gen_text_lower)
-        keyword_overlap = matched / max(len(spec_keywords), 1)
-
-        # --- Metric 3: Sentence variety (simple coherence heuristic) ---
-        sentences = [s.strip() for s in re.split(r"[.!?]", generated) if s.strip()]
-        unique_starts = len({s.split()[0].lower() for s in sentences if s.split()})
-        sentence_variety = unique_starts / max(len(sentences), 1)
-
-        # --- Composite score (0-1) ---
-        length_score = min(length_ratio / 5.0, 1.0)  # target ~5x expansion
-        composite = (length_score + keyword_overlap + sentence_variety) / 3.0
-
-        scores.append(
-            {
-                "spec": spec,
-                "generated": generated,
-                "length_ratio": round(length_ratio, 2),
-                "keyword_overlap": round(keyword_overlap, 2),
-                "sentence_variety": round(sentence_variety, 2),
-                "composite_score": round(composite, 2),
-            }
-        )
+        scores.append({"spec": spec, "generated": generated, **_score_pair(spec, generated)})
 
     avg_composite = sum(s["composite_score"] for s in scores) / len(scores)
     avg_keyword_overlap = sum(s["keyword_overlap"] for s in scores) / len(scores)
@@ -434,3 +452,102 @@ def milestone_5(trained_result: dict):
         "total_params": total_params,
         "sample_output": sample_output,
     }
+
+
+def _row(spec: str, generated: str, method: str) -> dict:
+    return {"method": method, "spec": spec, "generated": generated, **_score_pair(spec, generated)}
+
+
+def run_recorded_evaluation(steps: int = 8, sample_count: int = 3) -> dict:
+    """Compare a template, untouched GPT-2, and GPT-2 after a short LoRA run.
+
+    The three samples are the first rows of the hand-written dataset. Generation
+    is greedy so the same command reproduces the same text.
+    """
+    import gc
+
+    import torch
+    from transformers import GPT2LMHeadModel, GPT2Tokenizer
+
+    info = milestone_1()
+    samples = info["dataset"][:sample_count]
+    specs = [item["spec"] for item in samples]
+
+    tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+    tokenizer.pad_token = tokenizer.eos_token
+    base = GPT2LMHeadModel.from_pretrained("gpt2")
+    base.eval()
+    untouched = [
+        _row(spec, milestone_3(spec, base, tokenizer, max_new_tokens=40), "untouched GPT-2")
+        for spec in specs
+    ]
+    del base
+    gc.collect()
+
+    trained = milestone_2(steps=steps)
+    merged = milestone_5(trained)
+    lora_rows = [
+        _row(
+            spec,
+            milestone_3(spec, merged["model"], merged["tokenizer"], max_new_tokens=40),
+            "LoRA, merged",
+        )
+        for spec in specs
+    ]
+    template_rows = [_row(spec, milestone_3(spec), "template") for spec in specs]
+
+    def _avg(rows, key):
+        return round(sum(row[key] for row in rows) / len(rows), 2)
+
+    report = {
+        "base_model": "gpt2",
+        "data_source": (
+            f"{info['num_examples']} spec/description pairs written for this project and stored in "
+            "milestone_1. They are not scraped from a shop."
+        ),
+        "num_examples": info["num_examples"],
+        "avg_spec_words": info["avg_spec_length"],
+        "avg_description_words": info["avg_desc_length"],
+        "lora": {
+            "rank": trained["rank"],
+            "alpha": trained["alpha"],
+            "trainable_parameters": trained["lora_params_count"],
+            "steps": trained["steps"],
+            "baseline_loss": trained["baseline_loss"],
+            "final_loss": trained["final_loss"],
+            "final_eval_loss": trained["final_eval_loss"],
+            "mean_loss": trained["training_loss"],
+            "loss_history": trained["loss_history"],
+            "parameters_after_merge": merged["total_params"],
+        },
+        "averages": {
+            "template_keyword_overlap": _avg(template_rows, "keyword_overlap"),
+            "untouched_keyword_overlap": _avg(untouched, "keyword_overlap"),
+            "lora_keyword_overlap": _avg(lora_rows, "keyword_overlap"),
+            "template_composite": _avg(template_rows, "composite_score"),
+            "untouched_composite": _avg(untouched, "composite_score"),
+            "lora_composite": _avg(lora_rows, "composite_score"),
+        },
+        "samples": template_rows + untouched + lora_rows,
+        "limits": [
+            "Training uses the first 8 pairs, truncated to 128 tokens, for a few AdamW steps at 1e-3. Padding positions are ignored. Only the rank-4 adapters on each attention c_attn layer are trained.",
+            "Keyword overlap counts spec words that reappear in the description. The template baseline pastes the spec into a sentence, so its overlap looks strong without any language-model training.",
+            "The three scored specs are inside the eight pairs the adapter trains on. A short GPT-2 run still does not reliably copy the long marketing style of the reference descriptions, and untouched outputs often wander off the product.",
+            "The composite score mixes length, keyword overlap, and whether sentences start with different words. It is not a rating of whether a shopper would trust the copy.",
+            "There is no held-out shop catalogue. A spec written like the training rows is the only setting these numbers describe.",
+        ],
+    }
+    del trained, merged
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    return report
+
+
+def save_evaluation(path: str | Path = "results/evaluation.json", steps: int = 40) -> dict:
+    """Run the comparison and write it where the Streamlit page and README can read it."""
+    report = run_recorded_evaluation(steps=steps)
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report

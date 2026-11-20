@@ -1,0 +1,158 @@
+{
+  "base_model": "gpt2",
+  "data_source": "30 spec/description pairs written for this project and stored in milestone_1. They are not scraped from a shop.",
+  "num_examples": 30,
+  "avg_spec_words": 12.93,
+  "avg_description_words": 65.43,
+  "lora": {
+    "rank": 4,
+    "alpha": 16,
+    "trainable_parameters": 147456,
+    "steps": 40,
+    "baseline_loss": 3.3499,
+    "final_loss": 1.8957,
+    "final_eval_loss": 1.4347,
+    "mean_loss": 2.7405,
+    "loss_history": [
+      3.7773,
+      3.7699,
+      3.6925,
+      3.7238,
+      3.5471,
+      3.4846,
+      3.4795,
+      3.3475,
+      3.3384,
+      3.2334,
+      3.1596,
+      3.0934,
+      3.0666,
+      3.0309,
+      2.95,
+      2.8976,
+      2.8441,
+      2.7718,
+      2.7969,
+      2.748,
+      2.6546,
+      2.6226,
+      2.5556,
+      2.5162,
+      2.4724,
+      2.4557,
+      2.3543,
+      2.3243,
+      2.3183,
+      2.2296,
+      2.1952,
+      2.1739,
+      2.132,
+      2.0821,
+      2.0398,
+      1.9908,
+      1.9708,
+      1.918,
+      1.9649,
+      1.8957
+    ],
+    "parameters_after_merge": 124439808
+  },
+  "averages": {
+    "template_keyword_overlap": 1.0,
+    "untouched_keyword_overlap": 0.22,
+    "lora_keyword_overlap": 0.68,
+    "template_composite": 0.85,
+    "untouched_composite": 0.49,
+    "lora_composite": 0.67
+  },
+  "samples": [
+    {
+      "method": "template",
+      "spec": "Wireless Bluetooth headphones, 40mm drivers, 20hr battery, foldable, USB-C charging",
+      "generated": "Discover the ultimate Wireless Bluetooth experience. Engineered with precision, this product features wireless bluetooth headphones, 40mm drivers, 20hr battery, foldable, usb-c charging. Perfect for anyone seeking quality and performance.",
+      "length_ratio": 2.9,
+      "keyword_overlap": 1.0,
+      "sentence_variety": 1.0,
+      "composite_score": 0.86
+    },
+    {
+      "method": "template",
+      "spec": "Stainless steel water bottle, 750ml, double-wall insulated, leak-proof lid, BPA-free",
+      "generated": "Discover the ultimate Stainless steel experience. Engineered with precision, this product features stainless steel water bottle, 750ml, double-wall insulated, leak-proof lid, bpa-free. Perfect for anyone seeking quality and performance.",
+      "length_ratio": 2.9,
+      "keyword_overlap": 1.0,
+      "sentence_variety": 1.0,
+      "composite_score": 0.86
+    },
+    {
+      "method": "template",
+      "spec": "Men's slim-fit chino trousers, 98% cotton 2% elastane, available in navy/khaki/olive, machine washable",
+      "generated": "Discover the ultimate Men's slim-fit experience. Engineered with precision, this product features men's slim-fit chino trousers, 98% cotton 2% elastane, available in navy/khaki/olive, machine washable. Perfect for anyone seeking quality and performance.",
+      "length_ratio": 2.46,
+      "keyword_overlap": 1.0,
+      "sentence_variety": 1.0,
+      "composite_score": 0.83
+    },
+    {
+      "method": "untouched GPT-2",
+      "spec": "Wireless Bluetooth headphones, 40mm drivers, 20hr battery, foldable, USB-C charging",
+      "generated": "The HTC One M8 is a great phone for those who love the HTC One M8's sleek design and sleek design. The One M8 is a great phone for those who love the HTC One",
+      "length_ratio": 3.5,
+      "keyword_overlap": 0.0,
+      "sentence_variety": 0.5,
+      "composite_score": 0.4
+    },
+    {
+      "method": "untouched GPT-2",
+      "spec": "Stainless steel water bottle, 750ml, double-wall insulated, leak-proof lid, BPA-free",
+      "generated": "This is a great water bottle for those who want to keep their water bottles clean and safe. It is a great water bottle for those who want to keep their water bottles clean and safe. It is",
+      "length_ratio": 3.8,
+      "keyword_overlap": 0.2,
+      "sentence_variety": 0.67,
+      "composite_score": 0.54
+    },
+    {
+      "method": "untouched GPT-2",
+      "spec": "Men's slim-fit chino trousers, 98% cotton 2% elastane, available in navy/khaki/olive, machine washable",
+      "generated": "This is a slim-fit chino trousers with a slim fit. The trousers are made of 100% cotton and are made of 100% elastane. The trousers are made of 100% cotton",
+      "length_ratio": 2.31,
+      "keyword_overlap": 0.45,
+      "sentence_variety": 0.67,
+      "composite_score": 0.53
+    },
+    {
+      "method": "LoRA, merged",
+      "spec": "Wireless Bluetooth headphones, 40mm drivers, 20hr battery, foldable, USB-C charging",
+      "generated": "Capture your music with the ultimate in wireless Bluetooth headphones. The 40mm drivers deliver crisp, detailed sound with a punch that rivals the best in size. The 20hr battery life makes them ideal for long",
+      "length_ratio": 3.5,
+      "keyword_overlap": 0.7,
+      "sentence_variety": 0.67,
+      "composite_score": 0.69
+    },
+    {
+      "method": "LoRA, merged",
+      "spec": "Stainless steel water bottle, 750ml, double-wall insulated, leak-proof lid, BPA-free",
+      "generated": "Protect your water bottles with our stainless steel water bottle. The 750ml capacity is perfect for everyday use, and the double-wall insulated lid keeps your bottles cold. The leak-proof lid keeps your",
+      "length_ratio": 3.2,
+      "keyword_overlap": 0.9,
+      "sentence_variety": 0.67,
+      "composite_score": 0.74
+    },
+    {
+      "method": "LoRA, merged",
+      "spec": "Men's slim-fit chino trousers, 98% cotton 2% elastane, available in navy/khaki/olive, machine washable",
+      "generated": "Explore the world of chino trousers with our slim-fit chino trousers. The machine-washable machine-stripping machine-stripping machine-stripping machine-stripping machine-stri",
+      "length_ratio": 1.38,
+      "keyword_overlap": 0.45,
+      "sentence_variety": 1.0,
+      "composite_score": 0.58
+    }
+  ],
+  "limits": [
+    "Training uses the first 8 pairs, truncated to 128 tokens, for a few AdamW steps at 1e-3. Padding positions are ignored. Only the rank-4 adapters on each attention c_attn layer are trained.",
+    "Keyword overlap counts spec words that reappear in the description. The template baseline pastes the spec into a sentence, so its overlap looks strong without any language-model training.",
+    "The three scored specs are inside the eight pairs the adapter trains on. A short GPT-2 run still does not reliably copy the long marketing style of the reference descriptions, and untouched outputs often wander off the product.",
+    "The composite score mixes length, keyword overlap, and whether sentences start with different words. It is not a rating of whether a shopper would trust the copy.",
+    "There is no held-out shop catalogue. A spec written like the training rows is the only setting these numbers describe."
+  ]
+}
